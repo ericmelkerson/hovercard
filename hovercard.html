@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<title>testing javascript collisions</title>
+<meta charset="utf-8">
+
+<script>
+
+var rolloverMe = (function () {
+
+	var userIntent; // for setting and clearing a timeout
+
+	/*
+	 * in order to show the rollover, check to see if we should position it to the left
+	 * of the hover element by comparing the right edge position of the element versus
+	 * the right edge of the containing (carousel); if the difference is less than the
+	 * (fixed) width of the rollover, position the rollover to the left of the hover
+	 * target element. otherwise, default is position it to the right.
+	 *
+	 */
+	function _showHoverContent (hoverItem) {
+
+		var container = document.getElementById('js-carousel'),
+				containerInfo = container.getBoundingClientRect(),
+				hoverItemInfo = hoverItem.getBoundingClientRect(),
+				itemDetails = hoverItem.nextSibling.nextSibling, // the next sibling, in firefox, is #text, so get the _next_ nextSibling (div)
+				rightBoundary;
+
+		// position the details element
+		// 1) get left edge of hover element (hoverItemInfo.x)
+		// 2) get calculated width of itemDetails element
+		//        NOTE: we can't get the width of an element with display:none. for now, we'll get this from a config
+		// 3) get the right side (x position plus its width) of the container element
+		rightBoundary = containerInfo.right;
+		// 4) add up 1 and 2.
+		//    parseInt(hoverItemInfo.x + 290) where 290 will come from a config on init
+		//
+		// IF the sum of 1 and 2 is greater than right edge of container element, then position right edge
+		//    of itemDetails at left edge of hover element (negative position based on width of itemDetails?
+		if (parseInt(hoverItemInfo.left + hoverItemInfo.width + 290) > rightBoundary) {
+
+			itemDetails.style.left = '-' + 290 + 'px';
+
+		//
+		// ELSE, position left edge of itemDetails at right edge of hover element (set right position
+		//       value with width of the hover element).
+		} else {
+			// console.info('place the left edge of item details at right edge of the hover item');
+			itemDetails.style.left = hoverItemInfo.width + 'px';
+		}
+
+		// show it
+		itemDetails.classList.add('show');
+
+		// handle mouseout event
+		hoverItem.addEventListener('mouseout', _handleLeave);
+	}
+
+	/*
+	* on mouseout, this method will kill the settimeout
+	*
+	*/
+	function _handleLeave (e) {
+
+		var openHoverContent = document.querySelector('.item-details.show');
+
+		// remove event listeners
+		if (openHoverContent) {
+			openHoverContent.removeEventListener('mouseenter', _handleHover);
+			openHoverContent.removeEventListener('mouseleave', _handleLeave);
+
+			// remove class to hide it again
+			openHoverContent.classList.remove('show');
+		}
+
+		// clear settimeout that would show the hover content
+		window.clearTimeout(userIntent);
+	}
+
+	/*
+	 * this method that will
+	 *    1) get the x and y coordinates of itself
+	 *    2) get height and width of itself
+	 *    3) store left position from x and bottom position from y
+	 *    4) store top position as y minus height and right position as x plus width
+	 *    5) on settimeout, call method, _showHoverContent(), that will open the rollover after
+	 *       a delay, passing an object containing the top, left, bottom and right positions
+	 *       as an argument.
+	 */
+	function _handleHover (e) {
+		var item = this;
+
+		// wait, and then call method to show the hover content
+		userIntent = setTimeout(_showHoverContent, 500, item); // the wait time should be a config
+
+		/*
+		 * NOTE: this closure method may be preferred, but setTimeout happens at the window/global
+		 *       scope so it doesn't work unless the argument you want to pass is saved at global
+		 *       scope which we really don't want to do. the above solution is better; simply pass
+		 *       the argument as a parameter to setTimeout so it is available at time of execution.
+		 *
+		 * window.itemInfo = item.getBoundingClientRect();
+		 *
+		 * setTimeout(function () {
+			 _showHoverContent(itemInfo);
+		 * }, 2000);
+		*/
+
+
+	}
+
+	function init () {
+		/*
+		 * get all elements that have a rollover class
+		 * TODO: pick a better name?
+		 *
+		 */
+		var rollovers = document.getElementsByClassName('js-rollover');
+
+		/*
+		 * go through all of these and attach a mouseover/enter event. uh oh,
+		 * this could be bad without a js framework; could just code for FF/moz for now
+		 * (or give in and use jQuery since this might become a plugin anyway).
+		 * TODO: this is fine for prototype, but we should use delegation for the final solution.
+		 *
+		 */
+		[].forEach.call(rollovers, function (item) {
+			item.addEventListener('mouseenter', _handleHover);
+			item.addEventListener('mouseleave', _handleLeave);
+		});
+	}
+
+	// Public methods
+	return {
+		init: init
+	};
+
+})();
+
+// init rolloverMe when DOM is ready
+document.onreadystatechange = function () {
+	if (document.readyState === 'interactive') {
+		rolloverMe.init();
+	}
+}
+
+</script>
+
+<style>
+.carousel {
+	background: pink;
+	padding: 20px;
+	width: 920px;
+}
+article {
+	display: inline-block;
+	margin-right: 20px;
+	position: relative;
+}
+
+article:last-of-type {
+	margin-right: 0;
+}
+
+.item-image {
+	background: lightblue;
+	border: solid transparent 2px;
+	height: 200px;
+	padding-top: 40px;
+	text-align: center;
+	width: 100px;
+}
+
+.item-image:hover {
+	border: solid red 2px;
+}
+
+.item-details {
+	background: grey;
+	display: none;
+	height: 224px; /* total computed height of .item-image including margin, padding and border */
+	left: 0;
+	padding: 0 20px 20px;
+	position: absolute;
+	top: 0;
+	width: 250px;
+}
+
+.item-details dt {
+	clear: both;
+	font-weight: bold;
+	width: 80px;
+}
+
+.item-details dt,
+.item-details dd {
+	float: left;
+}
+
+.item-details.show {
+	display: block;
+	z-index: 10;
+}
+</style>
+
+<div id="js-carousel" class="carousel">
+	<article class="ui-hovercard">
+		<div class="item-image js-rollover">this image</div>
+		<div class="item-details">
+			<h1>this image title</h1>
+			<dl>
+				<dt>some info</dt>
+				<dd>some data</dd>
+				<dt>more info</dt>
+				<dd>some other stuff</dd>
+				<dt>a detail</dt>
+				<dd>a value</dd>
+			</dl>
+		</div>
+	</article>
+
+	<article class="ui-hovercard">
+		<div class="item-image js-rollover">that image</div>
+		<div class="item-details">
+			<h1>that image title</h1>
+			<dl>
+				<dt>some info</dt>
+				<dd>some data</dd>
+				<dt>more info</dt>
+				<dd>some other stuff</dd>
+				<dt>a detail</dt>
+				<dd>a value</dd>
+			</dl>
+		</div>
+	</article>
+
+	<article class="ui-hovercard">
+		<div class="item-image js-rollover">another image</div>
+		<div class="item-details">
+			<h1>another image title</h1>
+			<dl>
+				<dt>some info</dt>
+				<dd>some data</dd>
+				<dt>more info</dt>
+				<dd>some other stuff</dd>
+				<dt>a detail</dt>
+				<dd>a value</dd>
+			</dl>
+		</div>
+	</article>
+
+	<article class="ui-hovercard">
+		<div class="item-image js-rollover">another image</div>
+		<div class="item-details">
+			<h1>another image title</h1>
+			<dl>
+				<dt>some info</dt>
+				<dd>some data</dd>
+				<dt>more info</dt>
+				<dd>some other stuff</dd>
+				<dt>a detail</dt>
+				<dd>a value</dd>
+			</dl>
+		</div>
+	</article>
+
+	<article class="ui-hovercard">
+		<div class="item-image js-rollover">another image</div>
+		<div class="item-details">
+			<h1>another image title</h1>
+			<dl>
+				<dt>some info</dt>
+				<dd>some data</dd>
+				<dt>more info</dt>
+				<dd>some other stuff</dd>
+				<dt>a detail</dt>
+				<dd>a value</dd>
+			</dl>
+		</div>
+	</article>
+
+	<article class="ui-hovercard">
+		<div class="item-image js-rollover">another image</div>
+		<div class="item-details">
+			<h1>another image title</h1>
+			<dl>
+				<dt>some info</dt>
+				<dd>some data</dd>
+				<dt>more info</dt>
+				<dd>some other stuff</dd>
+				<dt>a detail</dt>
+				<dd>a value</dd>
+			</dl>
+		</div>
+	</article>
+
+	<article class="ui-hovercard">
+		<div class="item-image js-rollover">another image</div>
+		<div class="item-details">
+			<h1>another image title</h1>
+			<dl>
+				<dt>some info</dt>
+				<dd>some data</dd>
+				<dt>more info</dt>
+				<dd>some other stuff</dd>
+				<dt>a detail</dt>
+				<dd>a value</dd>
+			</dl>
+		</div>
+	</article>
+
+</div>
