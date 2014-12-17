@@ -3,129 +3,174 @@
 <meta charset="utf-8">
 
 <script>
+/*
+ * This class will show a Hovercard element when mousing over other elements. It takes a configuration object that defines
+ * the containing element and class name for hover items. A calculation is done to determine on which side of the hover
+ * element to show the Hovercard based on the position of the hover element within the container.
+ *
+ * The only markup requirement is that the Hovercard element is the next sibling of the hover item element.
+ *
+ * example:
+ * <div> <!-- Containing (parent) element -->
+ *    <a href="http://yoursite.com/path/to/content"> <!-- Hover item element -->
+ *        <img src="http://yourimagehost/filename.jpg">
+ *    </a>
+ *    <div> <!-- Hovercard element -->
+ *        ...
+ *    </div>
+ * </div>
+ *
+ * The css class names in this document are not required for the Hovercard interaction, other than those specified in the config and "show".
+ *
+ */
+var hovercard = (function () {
 
-var rolloverMe = (function () {
+	'use strict';
 
-	var userIntent; // for setting and clearing a timeout
+	var _config,
+		userIntent,
+		container,
+		containerInfo,
+		hoverWait,
+		hoverClass;
 
 	/*
-	 * in order to show the rollover, check to see if we should position it to the left
-	 * of the hover element by comparing the right edge position of the element versus
-	 * the right edge of the containing (carousel); if the difference is less than the
-	 * (fixed) width of the rollover, position the rollover to the left of the hover
-	 * target element. otherwise, default is position it to the right.
-	 *
+	 * This method will detect if there is not enough room to display the Hovercard to the right
+	 * of the hover item (default behavior) and, if so, show it on the left.
 	 */
 	function _showHoverContent (hoverItem) {
 
-		var container = document.getElementById('js-carousel'),
-				containerInfo = container.getBoundingClientRect(),
-				hoverItemInfo = hoverItem.getBoundingClientRect(),
-				itemDetails = hoverItem.nextSibling.nextSibling, // the next sibling, in firefox, is #text, so get the _next_ nextSibling (div)
+		var hoverItemInfo = hoverItem.getBoundingClientRect(),
+				hovercard = hoverItem.nextSibling.nextSibling,// The next sibling, at least in Firefox, is #text, so get the _next_ nextSibling.
+				hovercardWidth,
 				rightBoundary;
 
-		// position the details element
-		// 1) get left edge of hover element (hoverItemInfo.x)
-		// 2) get calculated width of itemDetails element
-		//        NOTE: we can't get the width of an element with display:none. for now, we'll get this from a config
-		// 3) get the right side (x position plus its width) of the container element
+		// Get the right edge of the containing element.
 		rightBoundary = containerInfo.right;
-		// 4) add up 1 and 2.
-		//    parseInt(hoverItemInfo.x + 290) where 290 will come from a config on init
-		//
-		// IF the sum of 1 and 2 is greater than right edge of container element, then position right edge
-		//    of itemDetails at left edge of hover element (negative position based on width of itemDetails?
-		if (parseInt(hoverItemInfo.left + hoverItemInfo.width + 290) > rightBoundary) {
 
-			itemDetails.style.left = '-' + 290 + 'px';
+		// Show the Hovercard (will be displayed offscreen ,via css property, so we can get its width before positioning it).
+		hovercard.classList.add('show');
 
-		//
-		// ELSE, position left edge of itemDetails at right edge of hover element (set right position
-		//       value with width of the hover element).
+		// Get Hovercard width.
+		hovercardWidth = hovercard.getBoundingClientRect().width;
+
+		// Detect collision with rightBoundary and show Hovercard in correct location.
+		if (parseInt(hoverItemInfo.left + hoverItemInfo.width + hovercardWidth, 10) > rightBoundary) {
+
+			// Position it to the left side of hover item.
+			hovercard.style.left = '-' + hovercardWidth + 'px';
+
 		} else {
-			// console.info('place the left edge of item details at right edge of the hover item');
-			itemDetails.style.left = hoverItemInfo.width + 'px';
+
+			// Position it to the right (default when no collision).
+			hovercard.style.left = hoverItemInfo.width + 'px';
 		}
 
-		// show it
-		itemDetails.classList.add('show');
-
-		// handle mouseout event
-		hoverItem.addEventListener('mouseout', _handleLeave);
 	}
 
 	/*
-	* on mouseout, this method will kill the settimeout
-	*
-	*/
+	 * On mouseleave, this method will kill the settimeout and remove inline styles (clean up).
+	 *
+	 */
 	function _handleLeave (e) {
 
-		var openHoverContent = document.querySelector('.item-details.show');
+		var openHoverContent = document.querySelector('.' + hoverClass + '.show');
 
-		// remove event listeners
+		// Clear settimeout that would show the hover content.
+		window.clearTimeout(userIntent);
+
 		if (openHoverContent) {
-			openHoverContent.removeEventListener('mouseenter', _handleHover);
-			openHoverContent.removeEventListener('mouseleave', _handleLeave);
 
-			// remove class to hide it again
+			// Remove "show" class to hide it again.
 			openHoverContent.classList.remove('show');
+
 		}
 
-		// clear settimeout that would show the hover content
-		window.clearTimeout(userIntent);
 	}
 
 	/*
-	 * this method that will
-	 *    1) get the x and y coordinates of itself
-	 *    2) get height and width of itself
-	 *    3) store left position from x and bottom position from y
-	 *    4) store top position as y minus height and right position as x plus width
-	 *    5) on settimeout, call method, _showHoverContent(), that will open the rollover after
-	 *       a delay, passing an object containing the top, left, bottom and right positions
-	 *       as an argument.
+	 * This method is the callback for the mouseover event. It will use a settime, indicating
+	 * user intent to display the Hovercard content, and then call _showHoverContent().
 	 */
 	function _handleHover (e) {
 		var item = this;
 
-		// wait, and then call method to show the hover content
-		userIntent = setTimeout(_showHoverContent, 500, item); // the wait time should be a config
-
-		/*
-		 * NOTE: this closure method may be preferred, but setTimeout happens at the window/global
-		 *       scope so it doesn't work unless the argument you want to pass is saved at global
-		 *       scope which we really don't want to do. the above solution is better; simply pass
-		 *       the argument as a parameter to setTimeout so it is available at time of execution.
-		 *
-		 * window.itemInfo = item.getBoundingClientRect();
-		 *
-		 * setTimeout(function () {
-			 _showHoverContent(itemInfo);
-		 * }, 2000);
-		*/
-
+		// Wait, and then call method to show the Hovercard.
+		userIntent = setTimeout(_showHoverContent, hoverWait, item);
 
 	}
 
-	function init () {
-		/*
-		 * get all elements that have a rollover class
-		 * TODO: pick a better name?
-		 *
-		 */
-		var rollovers = document.getElementsByClassName('js-rollover');
+	/*
+	 * This method handles window resize events. Since the Hovercards are positioned based on
+	 * their position in the window compared to the position of the containing element, these
+	 * numbers change when the window resizes, so re-initialize the Hovercards.
+	 */
+	function _handleResize (_config) {
 
-		/*
-		 * go through all of these and attach a mouseover/enter event. uh oh,
-		 * this could be bad without a js framework; could just code for FF/moz for now
-		 * (or give in and use jQuery since this might become a plugin anyway).
-		 * TODO: this is fine for prototype, but we should use delegation for the final solution.
-		 *
-		 */
+		var debounceExec,
+				eventRunning = false;
+
+		// Check if event callback is already running (only run callback if it's not already running).
+		if (!eventRunning) {
+
+			eventRunning = true;
+
+			debounceExec = setTimeout(function () {
+
+				// Re-initialize Hovercards.
+				init(_config);
+
+				// Clean up
+				eventRunning = false;
+				clearTimeout(debounceExec);
+
+			}, 1000);
+		}
+	}
+
+	/*
+	 * Initialize the Hovercards.
+	 * @param config is an object literal containing a string containerId,
+	 * 		  a string rolloverClass, and a number hoverWait.
+	 */
+	function init (config) {
+
+		var rollovers = document.getElementsByClassName(config.rolloverClass);
+
+		// Store the config in case we need to re-initialize (on window resize).
+		_config = config;
+
+		// Get container based on selector passed in from config.
+		container = document.getElementById(config.containerId);
+
+		// Don't do anything if container element is not present.
+		if (container === null) {
+
+			return false;
+		}
+
+		// Store container info
+		containerInfo = container.getBoundingClientRect(); // for setting and clearing the userInent timeout.
+
+		// How long to wait before showing the Hovercard.
+		hoverWait = config.hoverWait;
+
+		// Css class name on the hovercard element.
+		hoverClass = config.hoverClass;
+
+		// Go through all of these and attach a mouseover/enter event.
+		// NOTE: The [].forEach.call() syntax is a way to extend array
+		//       methods for use on class list object.
 		[].forEach.call(rollovers, function (item) {
-			item.addEventListener('mouseenter', _handleHover);
+
+			item.addEventListener('mouseover', _handleHover);
 			item.addEventListener('mouseleave', _handleLeave);
+
 		});
+
+		// Listen for window resize event so we can re-initialize Hovercards.
+		window.addEventListener('resize', _handleResize(_config));
+
 	}
 
 	// Public methods
@@ -135,21 +180,34 @@ var rolloverMe = (function () {
 
 })();
 
-// init rolloverMe when DOM is ready
+// Init Hovercard when DOM is ready.
 document.onreadystatechange = function () {
+	'use strict';
+
 	if (document.readyState === 'interactive') {
-		rolloverMe.init();
+		hovercard.init({
+			containerId : 'js-hover-container', // Container to use for collision detection (flip the card).
+			rolloverClass : 'js-hover-item', // Class for hover items.
+			hoverWait : 500, // Delay, in milliseconds, before showing the Hovercard.
+			hoverClass : 'hovercard'
+		});
 	}
 }
 
 </script>
 
 <style>
-.carousel {
+/*
+ * NOTE: The following css is purely decoration for the purpose of demo and
+ *       is not required for Hovercard functionality.
+ */
+.container {
 	background: pink;
+	margin: 0 auto;
 	padding: 20px;
-	width: 920px;
+	width: 650px;
 }
+
 article {
 	display: inline-block;
 	margin-right: 20px;
@@ -160,7 +218,7 @@ article:last-of-type {
 	margin-right: 0;
 }
 
-.item-image {
+.hover-item {
 	background: lightblue;
 	border: solid transparent 2px;
 	height: 200px;
@@ -169,14 +227,14 @@ article:last-of-type {
 	width: 100px;
 }
 
-.item-image:hover {
+.hover-item:hover {
 	border: solid red 2px;
 }
 
-.item-details {
+.hovercard {
 	background: grey;
 	display: none;
-	height: 224px; /* total computed height of .item-image including margin, padding and border */
+	height: 224px; /* Total computed height of .hover-item including margin, padding and border */
 	left: 0;
 	padding: 0 20px 20px;
 	position: absolute;
@@ -184,27 +242,33 @@ article:last-of-type {
 	width: 250px;
 }
 
-.item-details dt {
+.hovercard dt {
 	clear: both;
 	font-weight: bold;
 	width: 80px;
 }
 
-.item-details dt,
-.item-details dd {
+.hovercard dt,
+.hovercard dd {
 	float: left;
 }
 
-.item-details.show {
+/*
+ * NOTE: This declaration block is the only CSS required for Hovercard functionality.
+ *       The first class, .hovercard, needs to match what is passed in as config.hoverClass.
+ *       The .show class should not be changed.
+ */
+.hovercard.show {
 	display: block;
+	left: -999em; /* Position off screen so we can measure its width before showing it */
 	z-index: 10;
 }
 </style>
 
-<div id="js-carousel" class="carousel">
-	<article class="ui-hovercard">
-		<div class="item-image js-rollover">this image</div>
-		<div class="item-details">
+<div id="js-hover-container" class="container">
+	<article>
+		<div class="hover-item js-hover-item">this image</div>
+		<div class="hovercard">
 			<h1>this image title</h1>
 			<dl>
 				<dt>some info</dt>
@@ -217,9 +281,9 @@ article:last-of-type {
 		</div>
 	</article>
 
-	<article class="ui-hovercard">
-		<div class="item-image js-rollover">that image</div>
-		<div class="item-details">
+	<article>
+		<div class="hover-item js-hover-item">that image</div>
+		<div class="hovercard">
 			<h1>that image title</h1>
 			<dl>
 				<dt>some info</dt>
@@ -232,9 +296,9 @@ article:last-of-type {
 		</div>
 	</article>
 
-	<article class="ui-hovercard">
-		<div class="item-image js-rollover">another image</div>
-		<div class="item-details">
+	<article>
+		<div class="hover-item js-hover-item">another image</div>
+		<div class="hovercard">
 			<h1>another image title</h1>
 			<dl>
 				<dt>some info</dt>
@@ -247,10 +311,10 @@ article:last-of-type {
 		</div>
 	</article>
 
-	<article class="ui-hovercard">
-		<div class="item-image js-rollover">another image</div>
-		<div class="item-details">
-			<h1>another image title</h1>
+	<article>
+		<div class="hover-item js-hover-item">that image</div>
+		<div class="hovercard">
+			<h1>that image title</h1>
 			<dl>
 				<dt>some info</dt>
 				<dd>some data</dd>
@@ -262,39 +326,9 @@ article:last-of-type {
 		</div>
 	</article>
 
-	<article class="ui-hovercard">
-		<div class="item-image js-rollover">another image</div>
-		<div class="item-details">
-			<h1>another image title</h1>
-			<dl>
-				<dt>some info</dt>
-				<dd>some data</dd>
-				<dt>more info</dt>
-				<dd>some other stuff</dd>
-				<dt>a detail</dt>
-				<dd>a value</dd>
-			</dl>
-		</div>
-	</article>
-
-	<article class="ui-hovercard">
-		<div class="item-image js-rollover">another image</div>
-		<div class="item-details">
-			<h1>another image title</h1>
-			<dl>
-				<dt>some info</dt>
-				<dd>some data</dd>
-				<dt>more info</dt>
-				<dd>some other stuff</dd>
-				<dt>a detail</dt>
-				<dd>a value</dd>
-			</dl>
-		</div>
-	</article>
-
-	<article class="ui-hovercard">
-		<div class="item-image js-rollover">another image</div>
-		<div class="item-details">
+	<article>
+		<div class="hover-item js-hover-item">another image</div>
+		<div class="hovercard">
 			<h1>another image title</h1>
 			<dl>
 				<dt>some info</dt>
