@@ -181,18 +181,14 @@ var hovercard = (function () {
 })();
 
 // Init Hovercard when DOM is ready.
-document.onreadystatechange = function () {
-	'use strict';
-
-	if (document.readyState === 'interactive') {
-		hovercard.init({
-			containerId : 'js-hover-container', // Container to use for collision detection (flip the card).
-			rolloverClass : 'js-hover-item', // Class for hover items.
-			hoverWait : 500, // Delay, in milliseconds, before showing the Hovercard.
-			hoverClass : 'hovercard'
-		});
-	}
-}
+document.addEventListener( 'DOMContentLoaded', function () {
+	hovercard.init({
+		containerId : 'js-hover-container', // Container to use for collision detection (flip the card).
+		rolloverClass : 'js-hover-item', // Class for hover items.
+		hoverWait : 500, // Delay, in milliseconds, before showing the Hovercard.
+		hoverClass : 'hovercard'
+	});
+}, false );
 
 </script>
 
